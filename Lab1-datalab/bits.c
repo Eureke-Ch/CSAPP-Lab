@@ -13,6 +13,7 @@
  * case it's OK.  
  */
 
+// #include <stdio.h>
 #if 0
 /*
  * Instructions to Students:
@@ -143,7 +144,7 @@ NOTES:
  *   Rating: 1
  */
 int bitXor(int x, int y) {
-  int result = (~(~x&y))&(~(~y&x));
+  int result = ~((~(~x&y))&(~(~y&x)));
   return result;
 }
 /* 
@@ -166,7 +167,7 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-  return 2;
+  return (!((x+1)+(x+1)))&(!!(x+1));
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -177,7 +178,8 @@ int isTmax(int x) {
  *   Rating: 2
  */
 int allOddBits(int x) {
-  return 2;
+  int y = (0xAA<<8)+(0xAA<<16)+(0xAA<<24)+0xAA;
+  return !((x&y)+~y+1);
 }
 /* 
  * negate - return -x 
@@ -187,7 +189,8 @@ int allOddBits(int x) {
  *   Rating: 2
  */
 int negate(int x) {
-  return 2;
+
+  return ~x+1;
 }
 //3
 /* 
@@ -200,7 +203,7 @@ int negate(int x) {
  *   Rating: 3
  */
 int isAsciiDigit(int x) {
-  return 2;
+  return (!((x+~0x30+1)>>31))&(!((0x39+~x+1)>>31));
 }
 /* 
  * conditional - same as x ? y : z 
@@ -210,7 +213,7 @@ int isAsciiDigit(int x) {
  *   Rating: 3
  */
 int conditional(int x, int y, int z) {
-  return 2;
+  return ((!x+(~1+1))&y)+((!!x+(~1+1))&z);
 }
 /* 
  * isLessOrEqual - if x <= y  then return 1, else return 0 
@@ -220,7 +223,8 @@ int conditional(int x, int y, int z) {
  *   Rating: 3
  */
 int isLessOrEqual(int x, int y) {
-  return 2;
+
+  return (((x>>31)&(!(y>>31)))|(!(((y+~x)+1)>>31)))&(!((!(x>>31))&(y>>31)));
 }
 //4
 /* 
@@ -232,7 +236,7 @@ int isLessOrEqual(int x, int y) {
  *   Rating: 4 
  */
 int logicalNeg(int x) {
-  return 2;
+  return ~(((x>>31)|((~x+1)>>31))&1)+2;
 }
 /* howManyBits - return the minimum number of bits required to represent x in
  *             two's complement
@@ -247,7 +251,28 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  return 0;
+  int s,c1,c2,c3,c4,c5,c6;
+  int cnt = 0;    //  计数
+  s = (x>>31)&1;  //  符号位
+  x = ((s<<31)>>31) ^ x; // 取反x
+  s = !!(x>>16);  // 判断高16位是否有1，有则s为1
+  c1 = s<<4;      // 若高16位有1，则低16位可以计数16
+  x >>= c1;       // 右移将已经计数的位移除，c1若为0，则用折半的长度判断
+  s = !!(x>>8);   // 用8位的长度去判断，有效位的个数计入c2
+  c2 = s<<3;
+  x >>= c2;
+  s = !!(x>>4);   // 用4位的长度去判断，有效位的个数计入c3
+  c3 = s<<2;
+  x >>= c3;
+  s = !!(x>>2);   // 用2位的长度去判断，有效位的个数计入c4
+  c4 = s<<1;
+  x >>= c4;
+  s = !!(x>>1);   // 用1位的长度去判断，有效位的个数计入c5
+  c5 = s;
+  x >>= c5;
+  c6 = !!x;       // 判断最低位是否为1
+  cnt = c1+c2+c3+c4+c5+c6+1;  // 将每次获得的低位有效位相加，再加1位符号位
+  return cnt;
 }
 //float
 /* 
@@ -262,7 +287,13 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-  return 2;
+  unsigned f = uf;
+  if ((f & 0x7f800000) == 0)// 如果阶码为0
+      f = ((f & 0x007fffff) << 1) | (0x80000000 & f); 
+      // 尾数不为0则尾数左移1位，尾数第1位为1则阶码加1，尾数为0则uf为0返回0
+  else if ((f & 0x7f800000) != 0x7f800000)// 如果阶码不为0，且非全1
+      f = f + 0x00800000;// 阶码加1
+  return f;
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -277,7 +308,25 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  unsigned inf = 1<<31;   // inf = maxint+1
+  int e = (uf>>23) & 0xff;// 阶码
+  int s = (uf>>31) & 1;   // 符号位
+  if (uf == 0) return 0;
+  uf <<= 8;       // 左移保留至阶码最后1位
+  uf |= 1<<31;    // 阶码最后一位设为1
+  uf >>= 8;       // 高八位全0
+  e -= 127;       // 阶数
+  if ((uf & 0x7f80000) == 0x7f80000 || e >= 32)
+      return inf; // 超过int范围返回inf
+  if (e < 0) // 小数返回0
+      return 0;
+  if (e <= 22) // 位数小于等于22位，尾数位右移
+      uf >>= 23-e;
+  else
+      uf <<= e-23; // 尾数大于22位，尾数为左移
+  if (s) 
+      uf = ~uf + 1;// 若原uf为负数，则对此处的正数uf取反加1得其相反数
+  return uf;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -293,5 +342,13 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+  unsigned inf = 0xff << 23; // 阶码全1
+  int e = 127 + x;    // 得到阶码
+  if (x < 0){
+    return 0;// 阶数小于0直接返回0
+  }
+  if (e >= 255){
+    return inf;// 阶码>=255直接返回inf
+  }
+  return e << 23;
 }
